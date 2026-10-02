@@ -47,6 +47,23 @@ function adjuntoContrato(dir: string, mensajeId: string): string | null {
   return correo.adjuntos.find((a) => /contrato\.txt|otrosi\.txt/i.test(a)) ?? null;
 }
 
+/**
+ * Normaliza el objeto `contrato` que llega como argumento. El modelo a veces lo anida como
+ * { es_contrato, contrato: {...} } (la forma que devuelve contratos_extraer). Lo desenvolvemos
+ * y validamos que tenga la forma mínima esperada (campos con {valor, confianza}).
+ */
+function normalizarContrato(entrada: unknown): Contrato | null {
+  let c = entrada as Record<string, unknown> | null;
+  if (c && typeof c === "object" && "contrato" in c && typeof (c as any).contrato === "object") {
+    c = (c as any).contrato;
+  }
+  if (!c || typeof c !== "object") return null;
+  const campo = (c as any).id_contrato;
+  // Un Contrato válido tiene id_contrato como { valor, confianza }
+  if (!campo || typeof campo !== "object" || !("confianza" in campo)) return null;
+  return c as unknown as Contrato;
+}
+
 // ─────────────────────────────────────────────────────────────
 // contratos_leer_buzon
 // ─────────────────────────────────────────────────────────────
@@ -137,13 +154,16 @@ export const validar = {
       const correo = leerJson<Correo>(ctx.directory, join(BUZON_DIR, args.mensaje_id, "correo.json"));
       if (!correo) return fail(`El mensaje '${args.mensaje_id}' no existe.`);
 
+      const contrato = normalizarContrato(args.contrato);
+      if (!contrato) return fail("El argumento 'contrato' no tiene la forma esperada; vuelve a llamar contratos_extraer para obtenerlo.");
+
       const adjunto = adjuntoContrato(ctx.directory, args.mensaje_id);
       const texto = adjunto ? leerTexto(ctx.directory, join(BUZON_DIR, args.mensaje_id, adjunto)) : null;
       const esContratoValido = texto !== null && docEsContrato(texto);
 
       const maestro = asegurarMaestro(ctx.directory);
       const { desconocido } = resolverComercial(ctx.directory, correo.de);
-      const resultado = clasificar(args.contrato, maestro, esContratoValido, desconocido);
+      const resultado = clasificar(contrato, maestro, esContratoValido, desconocido);
 
       log(ctx, "contratos_validar", args.mensaje_id, true,
         `${resultado.clasificacion} revision=[${resultado.requiere_revision.join(",")}]`);
@@ -174,13 +194,16 @@ export const registrar = {
       const correo = leerJson<Correo>(ctx.directory, join(BUZON_DIR, args.mensaje_id, "correo.json"));
       if (!correo) return fail(`El mensaje '${args.mensaje_id}' no existe.`);
 
+      const contrato = normalizarContrato(args.contrato);
+      if (!contrato) return fail("El argumento 'contrato' no tiene la forma esperada; vuelve a llamar contratos_extraer para obtenerlo.");
+
       const adjunto = adjuntoContrato(ctx.directory, args.mensaje_id);
       const texto = adjunto ? leerTexto(ctx.directory, join(BUZON_DIR, args.mensaje_id, adjunto)) : null;
       const esContratoValido = texto !== null && docEsContrato(texto);
 
       const maestro = asegurarMaestro(ctx.directory);
       const { nombre, desconocido } = resolverComercial(ctx.directory, correo.de);
-      const resultado = clasificar(args.contrato, maestro, esContratoValido, desconocido);
+      const resultado = clasificar(contrato, maestro, esContratoValido, desconocido);
 
       if (resultado.clasificacion === "rechazado") {
         log(ctx, "contratos_registrar", args.mensaje_id, false, "rechazado");
@@ -197,7 +220,7 @@ export const registrar = {
         return fail(`requiere revisión: ${resultado.requiere_revision.join(", ")}`);
       }
 
-      const c = args.contrato;
+      const c = contrato;
       const anioInicio =
         (c.fecha_inicio.valor ?? c.fecha_fin.valor ?? correo.fecha ?? "0000").slice(0, 4);
       const clienteSlug = slug(c.cliente.valor ?? "sin-cliente");
