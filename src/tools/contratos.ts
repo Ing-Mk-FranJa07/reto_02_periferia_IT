@@ -340,7 +340,74 @@ function construirMarkdownAlertas(
 }
 
 // ─────────────────────────────────────────────────────────────
+// contratos_procesar_buzon  (lote completo en una sola llamada, sin LLM por paso)
+// ─────────────────────────────────────────────────────────────
+
+export const procesar_buzon = {
+  description:
+    "Procesa de una sola vez TODOS los mensajes pendientes del buzón: extrae, clasifica y registra lo que esté limpio, deja en revisión lo dudoso (sin registrarlo) y genera el reporte de alertas. Úsala cuando pidan 'procesa el buzón'.",
+  args: {
+    hoy: z.string().describe("Fecha de referencia YYYY-MM-DD para el reporte de alertas"),
+  },
+  async execute(args: { hoy: string }, ctx: ToolContext): Promise<string> {
+    try {
+      const procesados = leerOutJson<string[]>(ctx.directory, "procesados.json", []);
+      const resumen: Array<Record<string, unknown>> = [];
+
+      for (const id of listarMensajes(ctx.directory)) {
+        if (procesados.includes(id)) continue;
+
+        // 1. Extraer
+        const extRaw = await extraer.execute({ mensaje_id: id }, ctx);
+        const ext = JSON.parse(extRaw) as { ok: boolean; data?: any; error?: string };
+        if (!ext.ok) { resumen.push({ mensaje_id: id, estado: "error", detalle: ext.error }); continue; }
+
+        if (ext.data.es_contrato === false) {
+          resumen.push({ mensaje_id: id, clasificacion: "rechazado", motivo: "no es un contrato", registrado: false });
+          continue;
+        }
+
+        const contrato = ext.data.contrato as Contrato;
+
+        // 2. Validar
+        const valRaw = await validar.execute({ mensaje_id: id, contrato }, ctx);
+        const val = JSON.parse(valRaw) as { ok: boolean; data?: any };
+        const v = val.ok ? val.data : null;
+
+        // 3. Registrar solo lo limpio (sin confirmar lo dudoso)
+        const regRaw = await registrar.execute({ mensaje_id: id, contrato }, ctx);
+        const reg = JSON.parse(regRaw) as { ok: boolean; data?: any; error?: string };
+
+        resumen.push({
+          mensaje_id: id,
+          id_contrato: contrato.id_contrato.valor,
+          cliente: contrato.cliente.valor,
+          valor: contrato.valor.valor,
+          moneda: contrato.moneda.valor,
+          vigencia: `${contrato.fecha_inicio.valor ?? "—"} → ${contrato.fecha_fin.valor ?? "—"}`,
+          clasificacion: v?.clasificacion ?? "desconocida",
+          requiere_revision: v?.requiere_revision ?? [],
+          remitente_desconocido: v?.remitente_desconocido ?? false,
+          registrado: reg.ok,
+          accion: reg.ok ? reg.data.accion : null,
+          nota: reg.ok ? null : reg.error,
+        });
+      }
+
+      // 4. Alertas
+      const alRaw = await alertas.execute({ hoy: args.hoy }, ctx);
+      const al = JSON.parse(alRaw) as { ok: boolean; data?: any };
+
+      log(ctx, "contratos_procesar_buzon", "", true, `${resumen.length} mensajes procesados`);
+      return ok({ contratos: resumen, alertas: al.ok ? al.data : null });
+    } catch (e) {
+      return fail(`Error procesando el buzón: ${(e as Error).message}`);
+    }
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
 // Registro de todas las herramientas (para el ciclo del agente y demo)
 // ─────────────────────────────────────────────────────────────
 
-export const HERRAMIENTAS = { leer_buzon, extraer, validar, registrar, alertas } as const;
+export const HERRAMIENTAS = { leer_buzon, extraer, validar, registrar, alertas, procesar_buzon } as const;

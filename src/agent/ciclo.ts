@@ -77,6 +77,7 @@ export async function ejecutarTurno(
   const toolCallsVisibles: ToolCallVisible[] = [];
   let tokens = 0;
   let needsConfirmation = false;
+  let reintentoVacio = false;
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
     emitir({ tipo: "pensando" });
@@ -91,10 +92,34 @@ export async function ejecutarTurno(
     }
     tokens += resp.tokens ?? 0;
 
-    // Sin tool calls → respuesta final del turno
+    // Sin tool calls → el modelo quiere cerrar el turno
     if (resp.tool_calls.length === 0) {
-      emitir({ tipo: "respuesta", texto: resp.texto });
-      return { reply: resp.texto, toolCalls: toolCallsVisibles, needsConfirmation, tokens };
+      const texto = resp.texto.trim();
+      if (texto.length > 0) {
+        emitir({ tipo: "respuesta", texto });
+        return { reply: texto, toolCalls: toolCallsVisibles, needsConfirmation, tokens };
+      }
+      // Respuesta vacía: Gemini a veces devuelve texto vacío tras una herramienta.
+      // Si ya ejecutamos herramientas, le pedimos que redacte el resumen y reintentamos.
+      if (toolCallsVisibles.length > 0 && !reintentoVacio) {
+        reintentoVacio = true;
+        mensajes.push({
+          rol: "user",
+          contenido:
+            "Redacta ahora tu respuesta para la analista con base en los resultados de las " +
+            "herramientas que ya ejecutaste: resume la clasificación de cada contrato, qué quedó " +
+            "registrado, qué requiere revisión (campo por campo) y, si corresponde, el reporte de " +
+            "alertas. Si algo necesita mi confirmación, pregúntamelo explícitamente.",
+        });
+        continue;
+      }
+      // Respaldo: no hubo texto ni forma de recuperarlo
+      const fallback =
+        toolCallsVisibles.length > 0
+          ? "Ejecuté las herramientas pero no pude redactar el resumen. Pídeme que reintente o sé más específico (por ejemplo: \"procesa el mensaje msg-001\")."
+          : "No tengo suficiente información para responder. ¿Puedes reformular? Por ejemplo: \"procesa el buzón con fecha de hoy 2026-09-03\".";
+      emitir({ tipo: "respuesta", texto: fallback });
+      return { reply: fallback, toolCalls: toolCallsVisibles, needsConfirmation, tokens };
     }
 
     // Registrar el turno del asistente con sus tool calls
