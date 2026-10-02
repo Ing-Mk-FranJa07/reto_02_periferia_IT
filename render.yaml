@@ -1,0 +1,17 @@
+# Despliegue en Render — servicio web Node persistente.
+# Render lee este archivo al conectar el repo. La API key se configura como variable
+# de entorno en el dashboard de Render (NUNCA en el repositorio).
+services:
+  - type: web
+    name: reto-02-registro-contratos
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm --prefix web install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false            # se ingresa manualmente en el dashboard, no se versiona
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: NODE_VERSION
+        value: "20"

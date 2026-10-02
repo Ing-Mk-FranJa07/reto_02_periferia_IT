@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+web/node_modules/
+
+# Build
+dist/
+web/dist/
+*.tsbuildinfo
+
+# Temporales de diagnóstico
+_*.txt
+_*.log
+
+# Salidas generadas en ejecución
+out/
+
+# Variables de entorno (NUNCA subir la API key)
+.env
+*.env
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
