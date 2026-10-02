@@ -109,4 +109,8 @@ confirmo el valor 0 y la fecha fin 2027-08-31
 
 ## Link de prueba
 
-> _Pendiente de desplegar._ Ver sección de despliegue en `SOLUCION.md`.
+**https://reto-02-periferia-it.onrender.com/**
+
+Desplegado en Render (plan free). Nota: el servicio se suspende tras ~15 min de inactividad; la
+primera visita tras ese tiempo tarda ~30–50 s en despertar. Para la defensa, abrir el link unos
+minutos antes.

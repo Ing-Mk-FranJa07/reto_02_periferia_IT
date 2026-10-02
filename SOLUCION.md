@@ -157,7 +157,7 @@ Una página para que el proceso **sobreviva a la rotación** y no vuelva a conge
 | HU-5 Alertar | ✅ hecho | vencen ≤60d, pólizas pendientes, registrados desde el corte |
 | HU-6 Manejo de errores | ✅ hecho | herramientas devuelven `{ok:false,error}`, el lote no se aborta |
 | Front con tool calls + confirmación | ✅ hecho | tarjetas de tool call en vivo y banner de confirmación |
-| Despliegue público | ⏳ parcial | configurado para Render; link pendiente de publicar |
+| Despliegue público | ✅ hecho | https://reto-02-periferia-it.onrender.com/ (Render, plan free) |
 | Bonus módulo reutilizable | ⏳ no hecho | opcional (+10); las piezas (prompt, tools, knowledge) ya están separadas |
 
 **Qué falta para producción:** OCR para escaneos, persistencia en BD, integración real con Exchange
